@@ -242,6 +242,54 @@ All paths are relative to `$HOME` and created automatically if missing.
 
 ---
 
+## Manual Browser Download (Alternative to Script Download)
+
+If the script's download step fails (e.g. severe proxy restrictions), you can download model files manually from `https://huggingface.co/<org>/<repo>/tree/main` and place them in the correct directory.
+
+### What to download
+
+| File | Required? | Notes |
+|---|---|---|
+| `config.json` | Yes | Architecture detection |
+| `tokenizer.json` | Yes | Tokenizer |
+| `tokenizer_config.json` | Yes | Stop tokens, chat template |
+| `generation_config.json` | If present | Generation defaults |
+| `special_tokens_map.json` | If present | Special tokens |
+| `model.safetensors` | Yes (single-file models) | Weights |
+| `model-00001-of-0000N.safetensors` … | Yes (multi-shard) | Download **all shards** |
+| `model.safetensors.index.json` | Yes (multi-shard only) | Shard map — required |
+| `tokenizer.model` or `vocab.json` | If present | Vocabulary |
+| `preprocessor_config.json` | VLMs only | Image preprocessing |
+
+**Skip:** `flax_model.msgpack`, `tf_model.h5`, `pytorch_model.bin`, `onnx/` subfolder
+
+### Where to place the files
+
+The script expects model files at:
+```
+~/models/<org>-<repo>/
+```
+
+The slug is derived by replacing `/` with `-` in the repo ID:
+
+| Repo ID | Target directory |
+|---|---|
+| `Qwen/Qwen3-VL-2B-Instruct` | `~/models/Qwen-Qwen3-VL-2B-Instruct/` |
+| `ibm-granite/granite-vision-4.1-4b` | `~/models/ibm-granite-granite-vision-4.1-4b/` |
+| `microsoft/bitnet-b1.58-2B-4T` | `~/models/microsoft-bitnet-b1.58-2B-4T/` |
+
+Place all files **directly** in the directory (no subfolders).
+
+### Then run normally
+
+```bash
+bash hf_model_setup.sh Qwen/Qwen3-VL-2B-Instruct
+```
+
+The script detects all shards are already present and **skips the download step**, going straight to type detection and setup.
+
+---
+
 ## Notes
 
 - **Corporate proxy (Zscaler, etc.):** The download step uses `urllib` with SSL verification disabled to bypass MITM certificate issues. Standard `hf` CLI often stalls or fails in these environments.
