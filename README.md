@@ -1,4 +1,4 @@
-# VLM Project
+# unified-hf-model-setup
 
 A portable toolkit for downloading, converting, and running HuggingFace language models locally - LLMs, Vision-Language Models (VLMs), and BitNet ternary models - with a single shell script.
 
@@ -7,14 +7,10 @@ A portable toolkit for downloading, converting, and running HuggingFace language
 ## Contents
 
 ```
-vlm-project/
+unified-hf-model-setup/
 ├── hf_model_setup.sh          # Main entry point - download + setup any HF model
 ├── chat_hf_vlm.py             # Generic interactive chat CLI for any HF VLM
-├── chat_qwen3vl.py            # Qwen3-VL-2B specific interactive chat
-├── extract_granite_lm.py      # Extract LM-only weights from Granite-Vision safetensors
-├── test_hf_vlm_vision.py      # Generic VLM vision inference test
-├── test_qwen3vl.py            # Qwen3-VL text-only inference test
-└── test_qwen3vl_vision.py     # Qwen3-VL vision inference test
+└── README.md                  # This file
 ```
 
 ---
@@ -190,32 +186,32 @@ Interactive chat CLI supporting any HuggingFace VLM. Handles both transformers v
 
 ```bash
 # Always pass the FULL ABSOLUTE PATH to the downloaded model directory
-/home/pcarvalt/venvs/hf-vlm/bin/python vlm-project/chat_hf_vlm.py \
-    --model /home/pcarvalt/models/Qwen-Qwen3-VL-2B-Instruct
+~/venvs/hf-vlm/bin/python chat_hf_vlm.py \
+    --model ~/models/Qwen-Qwen3-VL-2B-Instruct
 
-/home/pcarvalt/venvs/hf-vlm/bin/python vlm-project/chat_hf_vlm.py \
-    --model /home/pcarvalt/models/ibm-granite-granite-vision-4.1-4b
+~/venvs/hf-vlm/bin/python chat_hf_vlm.py \
+    --model ~/models/ibm-granite-granite-vision-4.1-4b
 
 # With an initial image
-/home/pcarvalt/venvs/hf-vlm/bin/python vlm-project/chat_hf_vlm.py \
-    --model /home/pcarvalt/models/Qwen-Qwen3-VL-2B-Instruct \
+~/venvs/hf-vlm/bin/python chat_hf_vlm.py \
+    --model ~/models/Qwen-Qwen3-VL-2B-Instruct \
     --image /path/to/img.jpg
 
 # Force 4-bit NF4 quantisation (needs bitsandbytes, ~2-3 GB for 4B models)
-/home/pcarvalt/venvs/hf-vlm/bin/python vlm-project/chat_hf_vlm.py \
-    --model /home/pcarvalt/models/ibm-granite-granite-vision-4.1-4b \
+~/venvs/hf-vlm/bin/python chat_hf_vlm.py \
+    --model ~/models/ibm-granite-granite-vision-4.1-4b \
     --4bit
 ```
 
-> **Note:** The `--model` argument must be a full local path (e.g. `/home/pcarvalt/models/Qwen-Qwen3-VL-2B-Instruct`).
-> Passing just the directory name (e.g. `Qwen-Qwen3-VL-2B-Instruct`) will fail with a 404 error
-> because transformers will try to look it up on HuggingFace Hub instead of finding it locally.
+> **Note:** `--model` must be a full local path (e.g. `~/models/Qwen-Qwen3-VL-2B-Instruct`).
+> Passing just the directory name (e.g. `Qwen-Qwen3-VL-2B-Instruct`) causes transformers to
+> query HuggingFace Hub and fail with a 404 error.
 
 ### CLI Arguments
 
 | Argument | Default | Description |
 |---|---|---|
-| `--model` | Required | **Full absolute path** to local model directory (e.g. `/home/pcarvalt/models/Qwen-Qwen3-VL-2B-Instruct`) |
+| `--model` | Required | **Full absolute path** to local model directory |
 | `--image` | None | Path to an initial image (attached to the first message) |
 | `--dtype` | Auto | Force dtype: `float32`, `float16`, `bfloat16`. Auto: `float16` on CPU, `bfloat16` on CUDA |
 | `--4bit` | Off | Load weights in 4-bit NF4 via bitsandbytes (~2-3 GB for 4B models) |
@@ -228,39 +224,6 @@ Interactive chat CLI supporting any HuggingFace VLM. Handles both transformers v
 | `/image <path> <question>` | Attach an image and ask a question inline |
 | `/clear` | Reset conversation history |
 | `/quit` or Ctrl-C | Exit |
-
----
-
-## `chat_qwen3vl.py` - Qwen3-VL Specific Chat
-
-Hardcoded for `Qwen3-VL-2B-Instruct` at `~/models/Qwen3-VL-2B-Instruct`. Loads in `bfloat16` with `device_map=auto`.
-
-```bash
-python chat_qwen3vl.py
-python chat_qwen3vl.py --image /path/to/img.jpg
-```
-
----
-
-## `extract_granite_lm.py` - Extract LM Weights from Granite Vision
-
-Extracts only the language model tensors from IBM Granite Vision safetensors shards, writing a standalone `model.safetensors` for text-only inference. Uses `safe_open` for lazy per-tensor loading to keep RAM low.
-
-```bash
-python extract_granite_lm.py
-# Reads:  ~/models/ibm-granite-granite-vision-4.1-4b/
-# Writes: ~/models/granite-4b-text/model.safetensors
-```
-
----
-
-## Test Scripts
-
-| Script | What it tests |
-|---|---|
-| `test_hf_vlm_vision.py <model_dir> [image] [question]` | Single vision inference on any HF VLM |
-| `test_qwen3vl.py` | Text-only inference on Qwen3-VL-4B |
-| `test_qwen3vl_vision.py [image]` | Vision inference on Qwen3-VL-4B |
 
 ---
 
@@ -283,6 +246,6 @@ All paths are relative to `$HOME` and created automatically if missing.
 
 - **Corporate proxy (Zscaler, etc.):** The download step uses `urllib` with SSL verification disabled to bypass MITM certificate issues. Standard `hf` CLI often stalls or fails in these environments.
 - **Resume support:** Partial downloads are resumed automatically. Already-complete files are skipped.
-- **Incremental model detection:** The script checks for all required safetensors shards before downloading - re-running is safe and idempotent.
+- **Idempotent:** Re-running the script on an already-downloaded model is safe - it skips completed steps.
 - **VLM + ollama:** VLMs are intentionally not registered with ollama. Ollama has a known issue with `conv3d` operations used in some VLM vision encoders.
 - **BitNet double-quantisation:** If BitNet inference produces gibberish, it is a known issue with double-quantisation when the source weights are already ternary-packed. The pipeline itself is correct.
