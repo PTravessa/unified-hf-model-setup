@@ -265,13 +265,13 @@ files = [
 ]
 
 # ── Download each file with resume support and progress reporting ─────────────
-PROGRESS_INTERVAL = 100 * 1024 * 1024  # print every 100 MB
+CHUNK = 1 << 20  # 1 MB read chunks — bar refreshes every 1 MB
 
 for f in files:
     dest = out / f
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    # Improvement 1: resume — check existing partial size
+    # Resume — check existing partial size
     existing = dest.stat().st_size if dest.exists() else 0
 
     url = f"https://huggingface.co/{repo}/resolve/main/{f}"
@@ -316,20 +316,16 @@ for f in files:
 
     req = urllib.request.Request(url, headers=headers)
     downloaded = existing
-    last_report = downloaded - (downloaded % PROGRESS_INTERVAL)
 
     with urllib.request.urlopen(req, context=ctx) as r, open(dest, mode) as fp:
-        while chunk := r.read(1 << 20):   # 1 MB chunks
+        while chunk := r.read(CHUNK):   # 1 MB chunks — bar refreshes every 1 MB
             fp.write(chunk)
             downloaded += len(chunk)
-            # Update progress bar in-place every 100 MB
-            if downloaded - last_report >= PROGRESS_INTERVAL:
-                if total:
-                    _print_bar(downloaded, total)
-                else:
-                    sys.stdout.write(f"\r    {downloaded // (1024**2)} MB")
-                    sys.stdout.flush()
-                last_report = downloaded - (downloaded % PROGRESS_INTERVAL)
+            if total:
+                _print_bar(downloaded, total)
+            else:
+                sys.stdout.write(f"\r    {downloaded // (1024**2)} MB")
+                sys.stdout.flush()
 
     if total:
         _print_bar(downloaded, total)
