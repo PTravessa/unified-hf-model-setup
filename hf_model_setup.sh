@@ -169,6 +169,7 @@ fi
     "huggingface_hub[cli]" hf_transfer \
     "transformers>=4.40" accelerate safetensors \
     sentencepiece gguf Pillow numpy protobuf \
+    addict matplotlib \
     2>/dev/null | tail -2
 
 echo "  [OK]"
