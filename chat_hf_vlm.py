@@ -391,23 +391,50 @@ def get_max_context(model: Any) -> int:
     return 4096
 
 
-def print_context_bar(used_tokens: int, max_tokens: int, width: int = 40) -> None:
-    """Print a one-line ASCII context usage bar to stdout.
+# ANSI escape codes for in-place terminal line updates.
+_CURSOR_UP   = "\033[1A"
+_ERASE_LINE  = "\033[2K"
+
+
+def _context_bar_line(used_tokens: int, max_tokens: int, width: int = 44) -> str:
+    """Return a formatted context bar string (no trailing newline).
 
     Args:
-        used_tokens: Number of tokens consumed so far (prompt + history).
+        used_tokens: Number of tokens consumed so far.
         max_tokens: Total context window size.
-        width: Character width of the filled bar portion.
+        width: Width of the fill portion of the bar.
+
+    Returns:
+        Formatted bar string.
     """
     pct = min(used_tokens / max_tokens, 1.0) if max_tokens else 0.0
     filled = int(width * pct)
     bar = "#" * filled + "-" * (width - filled)
     remaining = max(max_tokens - used_tokens, 0)
-    print(
-        f"  Context: [{bar}] {used_tokens:,} / {max_tokens:,} tokens used"
-        f"  ({remaining:,} remaining  {pct * 100:.1f}%)",
-        flush=True,
+    return (
+        f"\n  Context: [{bar}] {used_tokens:,}/{max_tokens:,}"
+        f"  {remaining:,} left  {pct * 100:.1f}%"
     )
+
+
+def print_context_bar(used_tokens: int, max_tokens: int, *, update: bool = False) -> None:
+    """Print or in-place overwrite the context usage bar.
+
+    On the first call (update=False) the bar is written as a new line.
+    On subsequent calls (update=True) the cursor moves up one line and
+    rewrites it in place so the bar stays at the same screen position.
+
+    Args:
+        used_tokens: Number of tokens consumed so far (prompt + history).
+        max_tokens: Total context window size.
+        update: If True, overwrite the previous bar line in place.
+    """
+    line = _context_bar_line(used_tokens, max_tokens)
+    if update:
+        sys.stdout.write(f"{_CURSOR_UP}{_ERASE_LINE}\r{line}\n")
+    else:
+        sys.stdout.write(f"{line}\n")
+    sys.stdout.flush()
 
 
 def generate(
@@ -508,12 +535,18 @@ def generate(
     # ------------------------------------------------------------------ #
     # Generate                                                             #
     # ------------------------------------------------------------------ #
+    import logging
+    _tf_gen_logger = logging.getLogger("transformers.generation")
+    _prev = _tf_gen_logger.level
+    _tf_gen_logger.setLevel(logging.ERROR)
+
     with torch.no_grad():
         output_ids = model.generate(
             **inputs,
             max_new_tokens=max_new_tokens,
-            do_sample=False,
         )
+
+    _tf_gen_logger.setLevel(_prev)
 
     input_len = inputs["input_ids"].shape[1]
     generated = output_ids[0][input_len:]
@@ -597,12 +630,14 @@ def main() -> None:
     print(f"Max context: {max_ctx:,} tokens")
     print("Commands: /image <path> [question]  /clear  /quit")
     print("=" * 60)
-    print_context_bar(0, max_ctx)
+
+    used_tokens: int = 0  # updated after every generate() call
 
     while True:
         try:
             prefix = "[img] " if pending_image else ""
-            user_input = input(f"\n{prefix}You: ").strip()
+            bar = _context_bar_line(used_tokens, max_ctx)
+            user_input = input(f"{bar}\n{prefix}You: ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting.")
             sys.exit(0)
@@ -649,7 +684,7 @@ def main() -> None:
         print(response)
 
         history.append({"role": "assistant", "content": response})
-        print_context_bar(input_tokens, max_ctx)
+        used_tokens = input_tokens  # bar updates on next loop iteration via input() prompt
 
 
 if __name__ == "__main__":
